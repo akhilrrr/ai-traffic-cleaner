@@ -3,7 +3,10 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "GET, HEAD, POST, OPTIONS",
   "Access-Control-Allow-Headers": "*",
   "Access-Control-Max-Age": "86400",
+  "X-Content-Type-Options": "nosniff",
 };
+
+const CATALOG_TIMEOUT_MS = 3000;
 
 function withCors(response) {
   const newHeaders = new Headers(response.headers);
@@ -34,10 +37,14 @@ export async function onRequest(context) {
 
   // 2. Dynamic /llms.txt Auto-Generation
 if (url.pathname === '/llms.txt') {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), CATALOG_TIMEOUT_MS);
+
   try {
     const shopifyOrigin = 'https://ai-test-1-g9qgh2pw.myshopify.com';
     const response = await fetch(`${shopifyOrigin}/products.json?limit=50`, {
       redirect: 'manual',
+      signal: controller.signal,
       headers: { 
         'User-Agent': 'AITrafficCleaner/1.0',
         'Accept': 'application/json'
@@ -48,17 +55,16 @@ if (url.pathname === '/llms.txt') {
     
     // Catch redirects (301/302) or non-JSON responses from password protection
     if ((response.status >= 300 && response.status < 400) || !contentType.includes('application/json')) {
-      return new Response(
+      return withCors(new Response(
         "# Store Catalog Summary\n\nNote: Storefront is currently password-protected.\n\n- Visit store directly to browse full inventory.",
         {
           status: 200,
           headers: {
             'Content-Type': 'text/plain; charset=utf-8',
-            'Cache-Control': 'no-cache',
-            'Access-Control-Allow-Origin': '*'
+            'Cache-Control': 'public, max-age=300',
           }
         }
-      );
+      ));
     }
 
     const data = await response.json();
@@ -76,19 +82,26 @@ if (url.pathname === '/llms.txt') {
       markdown += `No public products currently found.\n`;
     }
 
-    return new Response(markdown, {
+    return withCors(new Response(markdown, {
       status: 200,
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
         'Cache-Control': 'public, max-age=3600',
-        'Access-Control-Allow-Origin': '*'
       }
-    });
+    }));
   } catch (err) {
-    return new Response(`# Store Catalog\n\nError generating live catalog: ${err.message}`, {
-      status: 500,
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' }
-    });
+    return withCors(new Response(
+      "# Store Catalog\n\nThe catalog is temporarily unavailable. Visit the store directly for current products.",
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Cache-Control': 'public, max-age=60',
+        }
+      }
+    ));
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

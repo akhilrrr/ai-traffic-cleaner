@@ -31,7 +31,7 @@
 }
 {% endschema %}
 
-<script>
+<script defer>
   window.AiCleanerSettings = {
     isolateChatGPT: {{ block.settings.isolate_chatgpt | json }},
     isolatePerplexity: {{ block.settings.isolate_perplexity | json }},

@@ -1,0 +1,15 @@
+name = "AI Traffic Cleaner"
+client_id = ""
+application_url = "https://your-cloudflare-app.pages.dev"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = true
+
+[access_scopes]
+scopes = ""
+
+[auth]
+redirect_urls = [
+  "https://your-cloudflare-app.pages.dev/api/auth/callback"
+]

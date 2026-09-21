@@ -1,77 +1,115 @@
-/**
- * AI Traffic Cleaner - Edge Traffic Router
- * Runs on Cloudflare Pages Functions in under 2ms.
- */
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, HEAD, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "*",
+  "Access-Control-Max-Age": "86400",
+};
+
+function withCors(response) {
+  const newHeaders = new Headers(response.headers);
+  Object.entries(CORS_HEADERS).forEach(([key, value]) => {
+    newHeaders.set(key, value);
+  });
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: newHeaders,
+  });
+}
 
 export async function onRequest(context) {
   const { request } = context;
   const url = new URL(request.url);
+  const userAgent = (request.headers.get("user-agent") || "").toLowerCase();
+  const accept = (request.headers.get("accept") || "").toLowerCase();
+  const acceptLanguage = request.headers.get("accept-language");
 
-  // 1. Instantly respond to CORS pre-flight requests from bots or tools
+  // 1. CORS Pre-Flight Request Handling
   if (request.method === "OPTIONS") {
     return new Response(null, {
       status: 204,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, User-Agent",
-      },
+      headers: CORS_HEADERS,
     });
   }
 
-  // Extract raw incoming request headers
-  const userAgent = (request.headers.get("user-agent") || "").toLowerCase();
-  const acceptHeader = request.headers.get("accept") || "";
-  const acceptLanguage = request.headers.get("accept-language") || "";
+  // 2. Dynamic /llms.txt Auto-Generation
+  if (url.pathname === "/llms.txt") {
+    try {
+      const catalogResponse = await fetch(`${url.origin}/products.json?limit=50`);
+      let markdownContent = `# ${url.hostname} — AI Store Catalog\n\n`;
+      markdownContent += `> Dynamically generated product summary for AI crawlers and assistants.\n\n`;
 
-  // Dynamic Query Overrides (Passed by App Embed URL query parameters if present)
-  const isolateChatGPT = url.searchParams.get("cgpt") !== "0"; 
-  const isolatePerplexity = url.searchParams.get("prpx") !== "0"; 
-  const isolateClaude = url.searchParams.get("cld") !== "0"; 
-  const blockUnknown = url.searchParams.get("unkn") !== "0"; 
-  const whitelistRoute = url.searchParams.get("route") || "/llms.txt";
+      if (catalogResponse.ok) {
+        const catalogData = await catalogResponse.json();
+        if (catalogData.products && catalogData.products.length > 0) {
+          catalogData.products.forEach((product) => {
+            markdownContent += `## ${product.title}\n`;
+            if (product.product_type) {
+              markdownContent += `- Category: ${product.product_type}\n`;
+            }
+            if (product.variants && product.variants.length > 0) {
+              markdownContent += `- Starting Price: $${product.variants[0].price}\n`;
+            }
+            markdownContent += `- Product Link: ${url.origin}/products/${product.handle}\n\n`;
+          });
+        } else {
+          markdownContent += `Welcome to ${url.hostname}. Explore our catalog at ${url.origin}.\n`;
+        }
+      } else {
+        markdownContent += `Welcome to ${url.hostname}. Explore our catalog at ${url.origin}.\n`;
+      }
 
-  // Prevent infinite loops: If bot is already on the target route, pass through cleanly
-  if (url.pathname === whitelistRoute) {
-    return context.next();
-  }
-
-  // --- STAGE 1: KNOWN AI SEARCH BOT INTERCEPTION ---
-  const isChatGPT = userAgent.includes("gptbot") || userAgent.includes("chatgpt-user");
-  const isPerplexity = userAgent.includes("perplexitybot");
-  const isClaude = userAgent.includes("claudebot");
-
-  const isMatchedAi = 
-    (isChatGPT && isolateChatGPT) ||
-    (isPerplexity && isolatePerplexity) ||
-    (isClaude && isolateClaude);
-
-  if (isMatchedAi) {
-    // 302 Redirect AI bot directly to the text feed (/llms.txt)
-    const redirectUrl = new URL(whitelistRoute, request.url);
-    return Response.redirect(redirectUrl.toString(), 302);
-  }
-
-  // --- STAGE 2: UNKNOWN SCRAPER & HEADLESS BOT DETECTION ---
-  if (blockUnknown) {
-    const isRawAcceptHeader = acceptHeader === "*/*";
-    const isMissingLanguageHeader = !acceptLanguage;
-    const isKnownScraperString = 
-      userAgent.includes("python") || 
-      userAgent.includes("axios") || 
-      userAgent.includes("curl") || 
-      userAgent.includes("wget");
-
-    if ((isRawAcceptHeader && isMissingLanguageHeader) || isKnownScraperString) {
-      // Block unverified data scrapers immediately
-      return new Response("Access Restricted", {
-        status: 403,
-        headers: { "Content-Type": "text/plain" },
-      });
+      return withCors(
+        new Response(markdownContent, {
+          status: 200,
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "Cache-Control": "public, max-age=3600",
+          },
+        })
+      );
+    } catch (error) {
+      return withCors(
+        new Response(`# ${url.hostname} Catalog\nVisit ${url.origin} for complete store products.`, {
+          status: 200,
+          headers: { "Content-Type": "text/plain; charset=utf-8" },
+        })
+      );
     }
   }
 
-  // --- STAGE 3: VERIFIED HUMAN TRAFFIC ---
-  // Pass normal shopper request straight to standard Shopify storefront
-  return context.next();
+  // 3. Known AI Crawler Interception
+  const aiBots = [
+    "gptbot",
+    "chatgpt-user",
+    "perplexitybot",
+    "claudebot",
+    "anthropic-ai",
+    "cohere-ai",
+    "bytespider",
+  ];
+
+  const isKnownAiBot = aiBots.some((bot) => userAgent.includes(bot));
+
+  if (isKnownAiBot) {
+    return withCors(Response.redirect(`${url.origin}/llms.txt`, 302));
+  }
+
+  // 4. Unknown Scraper & Automation Bot Detection
+  const botTools = ["python", "axios", "curl", "wget", "headlesschrome", "puppeteer", "scrapy"];
+  const isAutomatedTool = botTools.some((tool) => userAgent.includes(tool));
+  const isMissingLanguageAndBroadAccept = accept.includes("*/*") && !acceptLanguage;
+
+  if (isAutomatedTool || isMissingLanguageAndBroadAccept) {
+    return withCors(
+      new Response("Access Restricted: Automated scraping activity detected.", {
+        status: 403,
+        headers: { "Content-Type": "text/plain" },
+      })
+    );
+  }
+
+  // 5. Standard Shopper Passthrough
+  const response = await context.next();
+  return withCors(response);
 }

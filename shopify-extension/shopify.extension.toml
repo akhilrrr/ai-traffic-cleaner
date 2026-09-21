@@ -1,5 +1,0 @@
-name = "AI Traffic Cleaner"
-type = "theme_app_extension"
-
-[media]
-icon = "assets/icon.png"

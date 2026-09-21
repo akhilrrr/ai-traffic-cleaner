@@ -1,0 +1,7 @@
+name = "AI Traffic Cleaner"
+type = "theme_app_extension"
+
+[[blocks]]
+name = "AI Traffic Cleaner"
+template = "head"
+file = "ai_cleaner_embed.liquid"

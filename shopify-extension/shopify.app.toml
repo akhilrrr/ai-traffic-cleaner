@@ -2,7 +2,7 @@
 
 client_id = "c228b6067f6cac35337d0e453c45821a"
 name = "AI Traffic Cleaner"
-application_url = "https://shopify.dev/apps/default-app-home"
+application_url = "https://ai-traffic-cleaner.pages.dev"
 embedded = true
 
 [webhooks]
@@ -13,4 +13,4 @@ api_version = "2026-10"
 scopes = ""
 
 [auth]
-redirect_urls = [ "https://shopify.dev/apps/default-app-home/api/auth" ]
+redirect_urls = [ "https://ai-traffic-cleaner.pages.dev/api/auth" ]

@@ -1,32 +1,3 @@
-{% comment %}
-  AI Traffic Cleaner — Front-End Client Interceptor
-{% endcomment %}
-
-<script>
-  window.AiCleanerSettings = {
-    isolateChatGPT: {{ block.settings.isolate_chatgpt | json }},
-    isolatePerplexity: {{ block.settings.isolate_perplexity | json }},
-    isolateClaude: {{ block.settings.isolate_claude | json }},
-    blockScrapers: {{ block.settings.block_scrapers | json }},
-    whitelistRoute: {{ block.settings.whitelist_route | default: "/llms.txt" | json }}
-  };
-
-  (function() {
-    var ua = (navigator.userAgent || "").toLowerCase();
-    var settings = window.AiCleanerSettings;
-
-    var isChatGPT = settings.isolateChatGPT && (ua.indexOf("gptbot") !== -1 || ua.indexOf("chatgpt") !== -1);
-    var isPerplexity = settings.isolatePerplexity && ua.indexOf("perplexitybot") !== -1;
-    var isClaude = settings.isolateClaude && (ua.indexOf("claudebot") !== -1 || ua.indexOf("anthropic") !== -1);
-
-    if (isChatGPT || isPerplexity || isClaude) {
-      if (window.location.pathname !== settings.whitelistRoute) {
-        window.location.replace(settings.whitelistRoute);
-      }
-    }
-  })();
-</script>
-
 {% schema %}
 {
   "name": "AI Traffic Cleaner",
@@ -35,19 +6,13 @@
     {
       "type": "checkbox",
       "id": "isolate_chatgpt",
-      "label": "Isolate ChatGPT / OpenAI Crawlers",
+      "label": "Redirect ChatGPT to /llms.txt",
       "default": true
     },
     {
       "type": "checkbox",
       "id": "isolate_perplexity",
-      "label": "Isolate Perplexity AI Crawlers",
-      "default": true
-    },
-    {
-      "type": "checkbox",
-      "id": "isolate_claude",
-      "label": "Isolate Claude / Anthropic Crawlers",
+      "label": "Redirect Perplexity to /llms.txt",
       "default": true
     },
     {
@@ -59,9 +24,35 @@
     {
       "type": "text",
       "id": "whitelist_route",
-      "label": "Whitelisted Route Path",
+      "label": "AI Safe Route Path",
       "default": "/llms.txt"
     }
   ]
 }
 {% endschema %}
+
+<script>
+  window.AiCleanerSettings = {
+    isolateChatGPT: {{ block.settings.isolate_chatgpt | json }},
+    isolatePerplexity: {{ block.settings.isolate_perplexity | json }},
+    blockScrapers: {{ block.settings.block_scrapers | json }},
+    whitelistRoute: {{ block.settings.whitelist_route | json }} || "/llms.txt"
+  };
+
+  (function() {
+    var settings = window.AiCleanerSettings;
+    var path = window.location.pathname;
+    var ua = navigator.userAgent.toLowerCase();
+
+    // Prevent infinite redirect loops on the safe route
+    if (path === settings.whitelistRoute) return;
+
+    // Client-side AI Bot redirection matching Edge User-Agents
+    var isChatGPT = settings.isolateChatGPT && (ua.includes("gptbot") || ua.includes("chatgpt-user"));
+    var isPerplexity = settings.isolatePerplexity && (ua.includes("perplexitybot") || ua.includes("perplexity"));
+
+    if (isChatGPT || isPerplexity) {
+      window.location.replace(settings.whitelistRoute);
+    }
+  })();
+</script>

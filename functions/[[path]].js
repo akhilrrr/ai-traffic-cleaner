@@ -33,50 +33,47 @@ export async function onRequest(context) {
   }
 
   // 2. Dynamic /llms.txt Auto-Generation
-  if (url.pathname === "/llms.txt") {
-    try {
-      const catalogResponse = await fetch(`${url.origin}/products.json?limit=50`);
-      let markdownContent = `# ${url.hostname} — AI Store Catalog\n\n`;
-      markdownContent += `> Dynamically generated product summary for AI crawlers and assistants.\n\n`;
+  if (url.pathname === '/llms.txt') {
+  try {
+    const shopifyOrigin = 'https://ai-test-1-g9qgh2pw.myshopify.com';
+    const response = await fetch(`${shopifyOrigin}/products.json?limit=50`, {
+      headers: { 'User-Agent': 'AITrafficCleaner/1.0' }
+    });
 
-      if (catalogResponse.ok) {
-        const catalogData = await catalogResponse.json();
-        if (catalogData.products && catalogData.products.length > 0) {
-          catalogData.products.forEach((product) => {
-            markdownContent += `## ${product.title}\n`;
-            if (product.product_type) {
-              markdownContent += `- Category: ${product.product_type}\n`;
-            }
-            if (product.variants && product.variants.length > 0) {
-              markdownContent += `- Starting Price: $${product.variants[0].price}\n`;
-            }
-            markdownContent += `- Product Link: ${url.origin}/products/${product.handle}\n\n`;
-          });
-        } else {
-          markdownContent += `Welcome to ${url.hostname}. Explore our catalog at ${url.origin}.\n`;
-        }
-      } else {
-        markdownContent += `Welcome to ${url.hostname}. Explore our catalog at ${url.origin}.\n`;
-      }
-
-      return withCors(
-        new Response(markdownContent, {
-          status: 200,
-          headers: {
-            "Content-Type": "text/plain; charset=utf-8",
-            "Cache-Control": "public, max-age=3600",
-          },
-        })
-      );
-    } catch (error) {
-      return withCors(
-        new Response(`# ${url.hostname} Catalog\nVisit ${url.origin} for complete store products.`, {
-          status: 200,
-          headers: { "Content-Type": "text/plain; charset=utf-8" },
-        })
-      );
+    if (!response.ok) {
+      throw new Error(`Shopify returned status ${response.status}`);
     }
+
+    const data = await response.json();
+    let markdown = `# Store Catalog Summary\n\nGenerated for AI Crawlers and Search Agents.\n\n## Products\n\n`;
+
+    if (data.products && data.products.length > 0) {
+      for (const product of data.products) {
+        const title = product.title || 'Untitled Product';
+        const handle = product.handle || '';
+        const price = product.variants?.[0]?.price ? product.variants[0].price : 'N/A';
+        
+        markdown += `- **${title}** - Price: ${price}\n  Link: ${shopifyOrigin}/products/${handle}\n\n`;
+      }
+    } else {
+      markdown += `No public products currently found.\n`;
+    }
+
+    return new Response(markdown, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'public, max-age=3600',
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
+  } catch (err) {
+    return new Response(`# Store Catalog\n\nError generating live catalog: ${err.message}`, {
+      status: 500,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+    });
   }
+}
 
   // 3. Known AI Crawler Interception
   const aiBots = [

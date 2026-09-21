@@ -1,4 +1,7 @@
 name = "AI Traffic Cleaner"
+
+uid = "1e58254e-316d-d326-78f9-d5358e8d7d0c2f1db782"
+
 type = "theme_app_extension"
 
 [[blocks]]

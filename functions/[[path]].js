@@ -33,15 +33,32 @@ export async function onRequest(context) {
   }
 
   // 2. Dynamic /llms.txt Auto-Generation
-  if (url.pathname === '/llms.txt') {
+if (url.pathname === '/llms.txt') {
   try {
     const shopifyOrigin = 'https://ai-test-1-g9qgh2pw.myshopify.com';
     const response = await fetch(`${shopifyOrigin}/products.json?limit=50`, {
-      headers: { 'User-Agent': 'AITrafficCleaner/1.0' }
+      redirect: 'manual',
+      headers: { 
+        'User-Agent': 'AITrafficCleaner/1.0',
+        'Accept': 'application/json'
+      }
     });
 
-    if (!response.ok) {
-      throw new Error(`Shopify returned status ${response.status}`);
+    const contentType = response.headers.get('content-type') || '';
+    
+    // Catch redirects (301/302) or non-JSON responses from password protection
+    if ((response.status >= 300 && response.status < 400) || !contentType.includes('application/json')) {
+      return new Response(
+        "# Store Catalog Summary\n\nNote: Storefront is currently password-protected.\n\n- Visit store directly to browse full inventory.",
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/plain; charset=utf-8',
+            'Cache-Control': 'no-cache',
+            'Access-Control-Allow-Origin': '*'
+          }
+        }
+      );
     }
 
     const data = await response.json();
@@ -51,7 +68,7 @@ export async function onRequest(context) {
       for (const product of data.products) {
         const title = product.title || 'Untitled Product';
         const handle = product.handle || '';
-        const price = product.variants?.[0]?.price ? product.variants[0].price : 'N/A';
+        const price = product.variants?.[0]?.price ? `$${product.variants[0].price}` : 'N/A';
         
         markdown += `- **${title}** - Price: ${price}\n  Link: ${shopifyOrigin}/products/${handle}\n\n`;
       }
